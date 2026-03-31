@@ -1,0 +1,21 @@
+# node
+frontend/node_modules/
+frontend/.npm
+frontend/.yarn
+frontend/.pnpm-store
+
+# dist / build
+frontend/dist/
+.dailyweight-backend
+.dailyweight-backend.log
+
+# editor
+.DS_Store
+.vscode/
+.idea/
+
+# data
+data/
+
+# backend binary
+backend/backend
