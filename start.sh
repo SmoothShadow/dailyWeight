@@ -48,7 +48,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 require_port_free 8086 "后端"
-require_port_free 5173 "前端"
+require_port_free 970 "前端"
 
 (
   cd "$BACKEND_DIR"
@@ -80,12 +80,12 @@ fi
 
 (
   cd "$FRONTEND_DIR"
-  exec pnpm dev --host 127.0.0.1 --port 5173 --strictPort
+  exec pnpm dev --host 0.0.0.0 --port 970 --strictPort
 ) &
 FRONTEND_PID=$!
 
 for _ in {1..30}; do
-  if lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
+  if lsof -nP -iTCP:970 -sTCP:LISTEN >/dev/null 2>&1; then
     break
   fi
 
@@ -97,12 +97,12 @@ for _ in {1..30}; do
   sleep 1
 done
 
-if ! lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "前端启动超时，请检查 5173 端口或前端日志。" >&2
+if ! lsof -nP -iTCP:970 -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "前端启动超时，请检查 970 端口或前端日志。" >&2
   exit 1
 fi
 
-echo "frontend: http://localhost:5173"
+echo "frontend: http://localhost:970"
 echo "backend:  http://localhost:8086"
 echo "按 Ctrl+C 可同时停止前后端。"
 

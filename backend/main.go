@@ -54,6 +54,11 @@ type saveWeightPayload struct {
 	Weight float64 `json:"weight"`
 }
 
+type changePasswordPayload struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
 type errorResponse struct {
 	Message string `json:"message"`
 }
@@ -92,6 +97,7 @@ func main() {
 	mux.HandleFunc("/api/register", application.handleRegister)
 	mux.HandleFunc("/api/login", application.handleLogin)
 	mux.HandleFunc("/api/logout", application.handleLogout)
+	mux.HandleFunc("/api/change-password", application.handleChangePassword)
 	mux.HandleFunc("/api/me", application.handleMe)
 	mux.HandleFunc("/api/weights", application.handleWeights)
 
@@ -261,6 +267,57 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, authResponse{User: currentUser})
 }
 
+func (a *app) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+
+	currentUser, err := a.requireUser(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "未登录")
+		return
+	}
+
+	var payload changePasswordPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(w, http.StatusBadRequest, "请求数据格式错误")
+		return
+	}
+
+	payload.OldPassword = strings.TrimSpace(payload.OldPassword)
+	payload.NewPassword = strings.TrimSpace(payload.NewPassword)
+	if payload.OldPassword == "" || payload.NewPassword == "" {
+		writeError(w, http.StatusBadRequest, "旧密码和新密码不能为空")
+		return
+	}
+
+	var passwordHash string
+	err = a.db.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, currentUser.ID).Scan(&passwordHash)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "查询用户失败")
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(payload.OldPassword)); err != nil {
+		writeError(w, http.StatusUnauthorized, "旧密码错误")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(payload.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "密码处理失败")
+		return
+	}
+
+	if _, err := a.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, string(hash), currentUser.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "更新密码失败")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
@@ -270,16 +327,16 @@ func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("daily_weight_session")
 	if err == nil && cookie.Value != "" {
 		a.sessions.delete(cookie.Value)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "daily_weight_session",
+			Value:    "",
+			Path:     "/",
+			Expires:  time.Unix(0, 0),
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "daily_weight_session",
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   -1,
-		SameSite: http.SameSiteLaxMode,
-	})
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -300,16 +357,15 @@ func (a *app) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleWeights(w http.ResponseWriter, r *http.Request) {
-	currentUser, err := a.requireUser(r)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "未登录")
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
 		a.handleListWeights(w, r)
 	case http.MethodPost:
+		currentUser, err := a.requireUser(r)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "未登录")
+			return
+		}
 		a.handleSaveWeight(w, r, currentUser)
 	default:
 		methodNotAllowed(w)
@@ -462,7 +518,15 @@ func decodeAuthPayload(r *http.Request) (authPayload, error) {
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == "http://127.0.0.1:5173" || origin == "http://localhost:5173" {
+		allowed := false
+		if strings.HasPrefix(origin, "http://127.0.0.1:970") ||
+			strings.HasPrefix(origin, "http://localhost:970") ||
+			strings.HasPrefix(origin, "http://192.168.") && strings.HasSuffix(origin, ":970") ||
+			strings.HasPrefix(origin, "http://10.") && strings.HasSuffix(origin, ":970") ||
+			strings.HasPrefix(origin, "http://172.16.") && strings.HasSuffix(origin, ":970") {
+			allowed = true
+		}
+		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")

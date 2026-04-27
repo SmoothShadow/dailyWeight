@@ -1,4 +1,4 @@
-import type { AuthResponse, User, WeightRecord, WeightsResponse } from './types'
+import type { AuthResponse, ChangePasswordPayload, User, WeightRecord, WeightsResponse } from './types'
 
 const API_BASE = ''
 
@@ -41,6 +41,13 @@ export function login(payload: { username: string; password: string }): Promise<
 export function logout(): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>('/api/logout', {
     method: 'POST',
+  })
+}
+
+export function changePassword(payload: ChangePasswordPayload): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

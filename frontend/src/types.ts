@@ -20,3 +20,8 @@ export interface AuthResponse {
 export interface WeightsResponse {
   records: WeightRecord[]
 }
+
+export interface ChangePasswordPayload {
+  oldPassword: string
+  newPassword: string
+}
