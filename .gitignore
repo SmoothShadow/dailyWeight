@@ -7,7 +7,9 @@ frontend/.pnpm-store
 # dist / build
 frontend/dist/
 .dailyweight-backend
+.dailyweight-backend.exe
 .dailyweight-backend.log
+nul
 
 # editor
 .DS_Store

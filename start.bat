@@ -22,6 +22,22 @@ if errorlevel 1 (
 call :check_port 8086 "后端"
 call :check_port 970 "前端"
 
+:: 检查 pnpm
+where pnpm >nul 2>&1
+if errorlevel 1 (
+    echo 未找到 pnpm，请先安装 pnpm，或将 pnpm 添加到 PATH。
+    call :cleanup
+    exit /b 1
+)
+
+:: 检查 curl
+where curl >nul 2>&1
+if errorlevel 1 (
+    echo 未找到 curl，请先安装 curl，或将 curl 添加到 PATH。
+    call :cleanup
+    exit /b 1
+)
+
 :: 清理例程
 goto :main
 
@@ -109,7 +125,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr /r ":8086 .*LISTENING"') do (
 :: 启动前端
 echo 正在启动前端...
 cd /d "%FRONTEND_DIR%"
-start /b pnpm dev --host 0.0.0.0 --port 970 --strictPort
+start /b "" cmd /c "pnpm dev --host 0.0.0.0 --port 970 --strictPort" >nul 2>&1
 
 :: 等待前端就绪（最多 30 秒）
 set "frontend_ready=0"
